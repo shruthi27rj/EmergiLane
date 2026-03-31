@@ -1,0 +1,179 @@
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+
+#define SCAN_TIME 2
+
+BLEScan* pBLEScan;
+
+// 🚦 Pin definitions
+// Road A
+int redA = 23;
+int yellowA = 22;
+int greenA = 21;
+
+// Road B
+int redB = 19;
+int yellowB = 18;
+int greenB = 5;
+
+// 🚑 Detection variables
+int rssiA = -1000;
+int rssiB = -1000;
+bool ambA_detected = false;
+bool ambB_detected = false;
+
+// 📡 BLE Callback
+class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice advertisedDevice) {
+
+    if (advertisedDevice.haveName()) {
+      String name = advertisedDevice.getName().c_str();
+
+      Serial.print("Detected: ");
+      Serial.print(name);
+      Serial.print(" | RSSI: ");
+      Serial.println(advertisedDevice.getRSSI());
+
+      if (name == "AMB1") {
+        ambA_detected = true;
+        rssiA = advertisedDevice.getRSSI();
+      }
+
+      if (name == "AMB2") {
+        ambB_detected = true;
+        rssiB = advertisedDevice.getRSSI();
+      }
+    }
+  }
+};
+
+// 🚦 Normal Traffic Cycle
+void normalTraffic() {
+
+  Serial.println("Normal Traffic Mode");
+
+  // Road A Green
+  digitalWrite(greenA, HIGH);
+  digitalWrite(yellowA, LOW);
+  digitalWrite(redA, LOW);
+
+  digitalWrite(redB, HIGH);
+  digitalWrite(yellowB, LOW);
+  digitalWrite(greenB, LOW);
+
+  delay(4000);
+
+  // Road A Yellow
+  digitalWrite(greenA, LOW);
+  digitalWrite(yellowA, HIGH);
+  delay(2000);
+
+  digitalWrite(yellowA, LOW);
+  digitalWrite(redA, HIGH);
+
+  // Road B Green
+  digitalWrite(redB, LOW);
+  digitalWrite(greenB, HIGH);
+  delay(4000);
+
+  // Road B Yellow
+  digitalWrite(greenB, LOW);
+  digitalWrite(yellowB, HIGH);
+  delay(2000);
+
+  digitalWrite(yellowB, LOW);
+  digitalWrite(redB, HIGH);
+}
+
+// 🚑 Priority for Road A
+void priorityA() {
+
+  Serial.println("🚑 Priority: Road A");
+
+  digitalWrite(greenA, HIGH);
+  digitalWrite(yellowA, LOW);
+  digitalWrite(redA, LOW);
+
+  digitalWrite(redB, HIGH);
+  digitalWrite(yellowB, LOW);
+  digitalWrite(greenB, LOW);
+
+  delay(5000);
+}
+
+// 🚑 Priority for Road B
+void priorityB() {
+
+  Serial.println("🚑 Priority: Road B");
+
+  digitalWrite(greenB, HIGH);
+  digitalWrite(yellowB, LOW);
+  digitalWrite(redB, LOW);
+
+  digitalWrite(redA, HIGH);
+  digitalWrite(yellowA, LOW);
+  digitalWrite(greenA, LOW);
+
+  delay(5000);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(redA, OUTPUT);
+  pinMode(yellowA, OUTPUT);
+  pinMode(greenA, OUTPUT);
+
+  pinMode(redB, OUTPUT);
+  pinMode(yellowB, OUTPUT);
+  pinMode(greenB, OUTPUT);
+
+  // Initialize BLE
+  BLEDevice::init("");
+  pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true);
+
+  Serial.println("System Ready 🚦");
+}
+
+void loop() {
+
+  // Reset values
+  ambA_detected = false;
+  ambB_detected = false;
+  rssiA = -1000;
+  rssiB = -1000;
+
+  Serial.println("Scanning...");
+
+  // Start scan
+  pBLEScan->start(SCAN_TIME, false);
+  pBLEScan->clearResults();
+
+  // 🧠 Decision Logic
+  if (ambA_detected && !ambB_detected) {
+    priorityA();
+  }
+  else if (ambB_detected && !ambA_detected) {
+    priorityB();
+  }
+  else if (ambA_detected && ambB_detected) {
+
+    Serial.println("Both ambulances detected");
+
+    if (rssiA > rssiB) {
+      priorityA();
+      delay(2000);
+      priorityB();
+    } else {
+      priorityB();
+      delay(2000);
+      priorityA();
+    }
+  }
+  else {
+    normalTraffic();
+  }
+}
