@@ -6,133 +6,112 @@
 
 BLEScan* pBLEScan;
 
-// 🚦 Pin definitions
-// Road A
-int redA = 23;
-int yellowA = 22;
-int greenA = 21;
+// 🚦 Pins (use these EXACT ones you tested)
+int redA = 13;
+int greenA = 12;
 
-// Road B
-int redB = 19;
-int yellowB = 18;
-int greenB = 5;
+int redB = 27;
+int greenB = 26;
 
-// 🚑 Detection variables
+// 🚑 Detection
 int rssiA = -1000;
 int rssiB = -1000;
-bool ambA_detected = false;
-bool ambB_detected = false;
+bool ambA = false;
+bool ambB = false;
 
 // 📡 BLE Callback
-class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-  void onResult(BLEAdvertisedDevice advertisedDevice) {
+class MyCallbacks: public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice device) {
 
-    if (advertisedDevice.haveName()) {
-      String name = advertisedDevice.getName().c_str();
+    if (device.haveName()) {
+      String name = device.getName().c_str();
 
       Serial.print("Detected: ");
       Serial.print(name);
       Serial.print(" | RSSI: ");
-      Serial.println(advertisedDevice.getRSSI());
+      Serial.println(device.getRSSI());
 
       if (name == "AMB1") {
-        ambA_detected = true;
-        rssiA = advertisedDevice.getRSSI();
+        ambA = true;
+        rssiA = device.getRSSI();
       }
 
       if (name == "AMB2") {
-        ambB_detected = true;
-        rssiB = advertisedDevice.getRSSI();
+        ambB = true;
+        rssiB = device.getRSSI();
       }
     }
   }
 };
 
-// 🚦 Normal Traffic Cycle
+// 🚦 Default traffic state
 void normalTraffic() {
 
-  Serial.println("Normal Traffic Mode");
+  Serial.println("Normal Traffic");
 
-  // Road A Green
+  // Road A green
   digitalWrite(greenA, HIGH);
-  digitalWrite(yellowA, LOW);
   digitalWrite(redA, LOW);
 
   digitalWrite(redB, HIGH);
-  digitalWrite(yellowB, LOW);
   digitalWrite(greenB, LOW);
 
-  delay(4000);
+  delay(3000);
 
-  // Road A Yellow
+  // Switch
   digitalWrite(greenA, LOW);
-  digitalWrite(yellowA, HIGH);
-  delay(2000);
-
-  digitalWrite(yellowA, LOW);
   digitalWrite(redA, HIGH);
 
-  // Road B Green
   digitalWrite(redB, LOW);
   digitalWrite(greenB, HIGH);
-  delay(4000);
 
-  // Road B Yellow
-  digitalWrite(greenB, LOW);
-  digitalWrite(yellowB, HIGH);
-  delay(2000);
-
-  digitalWrite(yellowB, LOW);
-  digitalWrite(redB, HIGH);
+  delay(3000);
 }
 
-// 🚑 Priority for Road A
+// 🚑 Priority A
 void priorityA() {
 
   Serial.println("🚑 Priority: Road A");
 
   digitalWrite(greenA, HIGH);
-  digitalWrite(yellowA, LOW);
   digitalWrite(redA, LOW);
 
   digitalWrite(redB, HIGH);
-  digitalWrite(yellowB, LOW);
   digitalWrite(greenB, LOW);
 
-  delay(5000);
+  delay(3000);
 }
 
-// 🚑 Priority for Road B
+// 🚑 Priority B
 void priorityB() {
 
   Serial.println("🚑 Priority: Road B");
 
   digitalWrite(greenB, HIGH);
-  digitalWrite(yellowB, LOW);
   digitalWrite(redB, LOW);
 
   digitalWrite(redA, HIGH);
-  digitalWrite(yellowA, LOW);
   digitalWrite(greenA, LOW);
 
-  delay(5000);
+  delay(3000);
 }
 
 void setup() {
   Serial.begin(115200);
 
   pinMode(redA, OUTPUT);
-  pinMode(yellowA, OUTPUT);
   pinMode(greenA, OUTPUT);
-
   pinMode(redB, OUTPUT);
-  pinMode(yellowB, OUTPUT);
   pinMode(greenB, OUTPUT);
 
-  // Initialize BLE
+  // Default ON so you SEE something instantly
+  digitalWrite(redA, HIGH);
+  digitalWrite(redB, HIGH);
+
+  // BLE setup
   BLEDevice::init("");
   pBLEScan = BLEDevice::getScan();
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyCallbacks());
   pBLEScan->setActiveScan(true);
 
   Serial.println("System Ready 🚦");
@@ -140,36 +119,36 @@ void setup() {
 
 void loop() {
 
-  // Reset values
-  ambA_detected = false;
-  ambB_detected = false;
+  // Reset detection
+  ambA = false;
+  ambB = false;
   rssiA = -1000;
   rssiB = -1000;
 
   Serial.println("Scanning...");
 
-  // Start scan
+  // Scan BLE
   pBLEScan->start(SCAN_TIME, false);
   pBLEScan->clearResults();
 
-  // 🧠 Decision Logic
-  if (ambA_detected && !ambB_detected) {
+  // 🧠 Decision logic
+  if (ambA && !ambB) {
     priorityA();
   }
-  else if (ambB_detected && !ambA_detected) {
+  else if (ambB && !ambA) {
     priorityB();
   }
-  else if (ambA_detected && ambB_detected) {
+  else if (ambA && ambB) {
 
     Serial.println("Both ambulances detected");
 
     if (rssiA > rssiB) {
       priorityA();
-      delay(2000);
+      delay(1000);
       priorityB();
     } else {
       priorityB();
-      delay(2000);
+      delay(1000);
       priorityA();
     }
   }
